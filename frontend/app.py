@@ -149,7 +149,7 @@ def render_active_workflow():
         if current_status == "ERROR":
             st.error("Lost connection to API or task failed.")
             st.session_state.workflow_status = "FAILED"
-            break
+            st.rerun()
             
         progress = status_data.get("progress_percent", 0)
         progress_bar.progress(progress / 100.0)
@@ -173,7 +173,12 @@ def render_active_workflow():
         
         if current_status in ["COMPLETED", "COMPLETED_WITH_WARNINGS", "FAILED"]:
             st.session_state.workflow_status = current_status
-            break
+            time.sleep(0.5)  # Let backend finish appending any final logs
+            st.session_state.metrics = fetch_status(task_id)
+            final_logs = fetch_logs(task_id)
+            if final_logs:
+                st.session_state.logs = final_logs
+            st.rerun()
             
         time.sleep(POLL_INTERVAL)
         st.rerun()
