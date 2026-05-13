@@ -15,7 +15,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 
 from config import SEARCH_DELAY_SECONDS
 from utils.logger import get_logger
