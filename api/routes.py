@@ -149,51 +149,45 @@ def _run_workflow_background(
 
     try:
         # ----------------------------------------------------------------
-        # Monkey-patch WorkflowState to relay stage updates to registry
+        # Progress callback to relay real-time state to TASK_REGISTRY
         # ----------------------------------------------------------------
-        # We poll WorkflowState.stage via a lightweight monitor thread
-        # so the frontend sees live progress without blocking the pipeline.
-
-        _running = {"active": True}
-
-        def _progress_monitor():
-            """Poll workflow result's stage and push to registry."""
-            _stage_to_agent = {
-                WorkflowStage.RESEARCHING:  "Research Agent",
-                WorkflowStage.STRATEGIZING: "Strategy Agent",
-                WorkflowStage.PLANNING:     "Planner Agent",
-                WorkflowStage.CRITIQUING:   "Critic Agent",
-                WorkflowStage.QA_CHECK:     "QA Agent",
-                WorkflowStage.STORING:      "Memory Agent",
+        _seen_agents: set[str] = set()
+        
+        def _on_progress(state: WorkflowState):
+            _stage_to_agent_id = {
+                WorkflowStage.RESEARCHING:  "research_agent",
+                WorkflowStage.STRATEGIZING: "strategy_agent",
+                WorkflowStage.PLANNING:     "planner_agent",
+                WorkflowStage.CRITIQUING:   "critic_agent",
+                WorkflowStage.QA_CHECK:     "qa_agent",
+                WorkflowStage.STORING:      "memory_agent",
             }
-            _seen_agents: set[str] = set()
-
-            while _running["active"]:
-                with _registry_lock:
-                    record = TASK_REGISTRY.get(task_id, {})
-                    stage_str = record.get("stage", "initializing")
-
-                # Determine active agent name from stage
-                try:
-                    stage_enum = WorkflowStage(stage_str)
-                    agent_name = _stage_to_agent.get(stage_enum, "Orchestrator")
-                except ValueError:
-                    agent_name = "Orchestrator"
-
-                if agent_name not in _seen_agents and stage_str not in ("initializing", "completed", "failed"):
-                    _append_log(task_id, f"▶ {agent_name} started...")
-                    _seen_agents.add(agent_name)
-
-                time.sleep(1)
-
-        monitor = threading.Thread(target=_progress_monitor, daemon=True)
-        monitor.start()
+            stage_str = state.stage.value if state.stage else "initializing"
+            agent_id = _stage_to_agent_id.get(state.stage)
+            
+            # Log agent start dynamically
+            if agent_id and agent_id not in _seen_agents:
+                _seen_agents.add(agent_id)
+                agent_name = agent_id.replace("_", " ").title()
+                _append_log(task_id, f"▶ {agent_name} started...")
+                
+            # Update registry synchronously
+            _update_registry(task_id, {
+                "stage": stage_str,
+                "active_agent": agent_id,
+                "completed_agents": state.completed_agents.copy() if hasattr(state, 'completed_agents') else [],
+                "failed_agents": state.failed_agents.copy() if hasattr(state, 'failed_agents') else [],
+                "token_estimate": getattr(state, 'total_tokens', 0)
+            })
 
         # ----------------------------------------------------------------
         # Execute workflow
         # ----------------------------------------------------------------
-        result = run_workflow(workflow_input, enable_human_approval=enable_human_approval)
-        _running["active"] = False
+        result = run_workflow(
+            workflow_input, 
+            enable_human_approval=enable_human_approval,
+            progress_callback=_on_progress
+        )
 
         # ----------------------------------------------------------------
         # Derive final status

@@ -158,10 +158,25 @@ def render_active_workflow():
         status_text.markdown(f"**Stage:** {stage}")
         
         active_agent = status_data.get("active_agent")
-        if active_agent:
-            active_agent_display.info(f"🟡 {active_agent.replace('_', ' ').title()} is working...")
-        else:
-            active_agent_display.empty()
+        completed_agents = status_data.get("completed_agents", [])
+        
+        with active_agent_display.container():
+            st.markdown("### Agent Collaboration")
+            agent_list = [
+                ("research_agent", "Research Agent"),
+                ("strategy_agent", "Strategy Agent"),
+                ("planner_agent", "Planner Agent"),
+                ("critic_agent", "Critic Agent"),
+                ("qa_agent", "QA Agent")
+            ]
+            for agent_id, agent_name in agent_list:
+                if agent_id in completed_agents:
+                    st.markdown(f"🟢 **{agent_name}** Completed")
+                elif active_agent == agent_id:
+                    st.markdown(f"🟡 **{agent_name}** Running...")
+                else:
+                    st.markdown(f"⚪ **{agent_name}** Pending")
+            st.markdown("<br>", unsafe_allow_html=True)
             
         logs = fetch_logs(task_id)
         if logs:
@@ -252,10 +267,11 @@ def render_report(report: dict):
 
     st.markdown("---")
     st.subheader("System Performance")
-    ws = report.get("workflow_state", {})
+    # Synchronize with the same centralized session metrics used in the sidebar
+    m = st.session_state.metrics
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Agents Completed", len(ws.get("completed_agents", [])))
-    col2.metric("Tokens Used", ws.get("total_tokens", 0))
+    col1.metric("Agents Completed", len(m.get("completed_agents", [])))
+    col2.metric("Tokens Used", m.get("token_estimate", 0))
     col3.metric("QA Verdict", qa.get('overall_verdict', 'N/A'))
     col4.metric("Quality Score", critique.get('overall_quality_score', 0))
 

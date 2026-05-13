@@ -69,6 +69,7 @@ class Orchestrator:
         self,
         workflow_input: WorkflowInput,
         enable_human_approval: bool = False,
+        progress_callback: Optional[callable] = None,
     ) -> WorkflowResult:
         """
         Execute the full multi-agent workflow.
@@ -79,6 +80,8 @@ class Orchestrator:
             Business context from the user.
         enable_human_approval : bool
             If True, pause after strategy and await approval before planning.
+        progress_callback: Optional[callable]
+            Callback invoked after each agent completes, passing the current WorkflowState.
 
         Returns
         -------
@@ -100,6 +103,7 @@ class Orchestrator:
         # Initialize workflow state
         state = WorkflowState(task_id=task_id)
         state.stage = WorkflowStage.INITIALIZING
+        if progress_callback: progress_callback(state)
 
         # Initialize result containers (with None defaults)
         research: Optional[ResearchFindings] = None
@@ -107,6 +111,12 @@ class Orchestrator:
         plan: Optional[ExecutionPlan] = None
         critique: Optional[CritiqueOutput] = None
         qa: Optional[QAReport] = None
+
+        def _update_tokens():
+            cost_summary = self._cost_tracker.get_summary()
+            state.total_input_tokens = cost_summary["total_input_tokens"]
+            state.total_output_tokens = cost_summary["total_output_tokens"]
+            state.total_tokens = cost_summary.get("total_tokens", 0)
 
         try:
             # ----------------------------------------------------------------
@@ -140,6 +150,7 @@ class Orchestrator:
             # Step 2: Research Agent
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.RESEARCHING
+            if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 2: Running Research Agent...")
 
             if self._cost_tracker.can_proceed():
@@ -158,11 +169,20 @@ class Orchestrator:
 
             if not research:
                 research = self._fallback_research()
+                if "research_agent" not in state.failed_agents:
+                    state.failed_agents.append("research_agent")
+            else:
+                if "research_agent" not in state.completed_agents:
+                    state.completed_agents.append("research_agent")
+
+            _update_tokens()
+            if progress_callback: progress_callback(state)
 
             # ----------------------------------------------------------------
             # Step 3: Strategy Agent
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.STRATEGIZING
+            if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 3: Running Strategy Agent...")
 
             if self._cost_tracker.can_proceed():
@@ -180,6 +200,14 @@ class Orchestrator:
 
             if not strategy:
                 strategy = self._fallback_strategy()
+                if "strategy_agent" not in state.failed_agents:
+                    state.failed_agents.append("strategy_agent")
+            else:
+                if "strategy_agent" not in state.completed_agents:
+                    state.completed_agents.append("strategy_agent")
+
+            _update_tokens()
+            if progress_callback: progress_callback(state)
 
             # ----------------------------------------------------------------
             # Optional: Human-in-the-loop approval checkpoint
@@ -190,6 +218,7 @@ class Orchestrator:
                     f"[{self.AGENT_NAME}] Human approval checkpoint reached. "
                     f"task_id={task_id} | awaiting_human_approval=True"
                 )
+                if progress_callback: progress_callback(state)
                 # In async API mode, the frontend polls status and
                 # calls POST /approve/{task_id} to resume.
                 # For now in direct execution mode, we auto-continue.
@@ -199,6 +228,7 @@ class Orchestrator:
             # Step 4: Planner Agent
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.PLANNING
+            if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 4: Running Planner Agent...")
 
             if self._cost_tracker.can_proceed():
@@ -216,11 +246,20 @@ class Orchestrator:
 
             if not plan:
                 plan = self._fallback_plan()
+                if "planner_agent" not in state.failed_agents:
+                    state.failed_agents.append("planner_agent")
+            else:
+                if "planner_agent" not in state.completed_agents:
+                    state.completed_agents.append("planner_agent")
+
+            _update_tokens()
+            if progress_callback: progress_callback(state)
 
             # ----------------------------------------------------------------
             # Step 5: Critic Agent
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.CRITIQUING
+            if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 5: Running Critic Agent...")
 
             if self._cost_tracker.can_proceed():
@@ -239,11 +278,20 @@ class Orchestrator:
 
             if not critique:
                 critique = self._fallback_critique()
+                if "critic_agent" not in state.failed_agents:
+                    state.failed_agents.append("critic_agent")
+            else:
+                if "critic_agent" not in state.completed_agents:
+                    state.completed_agents.append("critic_agent")
+
+            _update_tokens()
+            if progress_callback: progress_callback(state)
 
             # ----------------------------------------------------------------
             # Step 6: QA Agent
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.QA_CHECK
+            if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 6: Running QA Agent...")
 
             if self._cost_tracker.can_proceed():
@@ -262,11 +310,20 @@ class Orchestrator:
 
             if not qa:
                 qa = self._fallback_qa()
+                if "qa_agent" not in state.failed_agents:
+                    state.failed_agents.append("qa_agent")
+            else:
+                if "qa_agent" not in state.completed_agents:
+                    state.completed_agents.append("qa_agent")
+
+            _update_tokens()
+            if progress_callback: progress_callback(state)
 
             # ----------------------------------------------------------------
             # Step 7: Store final report
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.STORING
+            if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 7: Storing final report...")
             self._store_final_report(task_id, research, strategy, plan, critique, qa)
 
@@ -274,11 +331,9 @@ class Orchestrator:
             # Step 8: Build and return final result
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.COMPLETED
+            _update_tokens()
+            if progress_callback: progress_callback(state)
             global_end = time.time()
-
-            cost_summary = self._cost_tracker.get_summary()
-            state.total_input_tokens = cost_summary["total_input_tokens"]
-            state.total_output_tokens = cost_summary["total_output_tokens"]
 
             summary = self._build_summary(state, qa, critique)
 
@@ -292,7 +347,7 @@ class Orchestrator:
                     "task_id": task_id,
                     "completed_agents": len(state.completed_agents),
                     "failed_agents": len(state.failed_agents),
-                    "total_tokens": cost_summary["total_tokens"],
+                    "total_tokens": state.total_tokens,
                     "qa_verdict": qa.overall_verdict if qa else "unknown",
                 },
             )
@@ -302,7 +357,7 @@ class Orchestrator:
                 f"task_id={task_id} | "
                 f"completed={len(state.completed_agents)} | "
                 f"failed={len(state.failed_agents)} | "
-                f"tokens≈{cost_summary['total_tokens']} | "
+                f"tokens≈{state.total_tokens} | "
                 f"verdict={qa.overall_verdict if qa else 'N/A'}"
             )
 
