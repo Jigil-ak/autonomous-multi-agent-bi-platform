@@ -116,7 +116,6 @@ class Orchestrator:
             cost_summary = self._cost_tracker.get_summary()
             state.total_input_tokens = cost_summary["total_input_tokens"]
             state.total_output_tokens = cost_summary["total_output_tokens"]
-            state.total_tokens = cost_summary.get("total_tokens", 0)
 
         try:
             # ----------------------------------------------------------------
@@ -150,6 +149,7 @@ class Orchestrator:
             # Step 2: Research Agent
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.RESEARCHING
+            state.mark_agent_start("research_agent")
             if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 2: Running Research Agent...")
 
@@ -169,11 +169,9 @@ class Orchestrator:
 
             if not research:
                 research = self._fallback_research()
-                if "research_agent" not in state.failed_agents:
-                    state.failed_agents.append("research_agent")
+                state.mark_agent_done("research_agent", AgentStatus.FAILED)
             else:
-                if "research_agent" not in state.completed_agents:
-                    state.completed_agents.append("research_agent")
+                state.mark_agent_done("research_agent", AgentStatus.SUCCESS)
 
             _update_tokens()
             if progress_callback: progress_callback(state)
@@ -182,6 +180,7 @@ class Orchestrator:
             # Step 3: Strategy Agent
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.STRATEGIZING
+            state.mark_agent_start("strategy_agent")
             if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 3: Running Strategy Agent...")
 
@@ -200,11 +199,9 @@ class Orchestrator:
 
             if not strategy:
                 strategy = self._fallback_strategy()
-                if "strategy_agent" not in state.failed_agents:
-                    state.failed_agents.append("strategy_agent")
+                state.mark_agent_done("strategy_agent", AgentStatus.FAILED)
             else:
-                if "strategy_agent" not in state.completed_agents:
-                    state.completed_agents.append("strategy_agent")
+                state.mark_agent_done("strategy_agent", AgentStatus.SUCCESS)
 
             _update_tokens()
             if progress_callback: progress_callback(state)
@@ -228,6 +225,7 @@ class Orchestrator:
             # Step 4: Planner Agent
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.PLANNING
+            state.mark_agent_start("planner_agent")
             if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 4: Running Planner Agent...")
 
@@ -246,11 +244,9 @@ class Orchestrator:
 
             if not plan:
                 plan = self._fallback_plan()
-                if "planner_agent" not in state.failed_agents:
-                    state.failed_agents.append("planner_agent")
+                state.mark_agent_done("planner_agent", AgentStatus.FAILED)
             else:
-                if "planner_agent" not in state.completed_agents:
-                    state.completed_agents.append("planner_agent")
+                state.mark_agent_done("planner_agent", AgentStatus.SUCCESS)
 
             _update_tokens()
             if progress_callback: progress_callback(state)
@@ -259,6 +255,7 @@ class Orchestrator:
             # Step 5: Critic Agent
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.CRITIQUING
+            state.mark_agent_start("critic_agent")
             if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 5: Running Critic Agent...")
 
@@ -278,11 +275,9 @@ class Orchestrator:
 
             if not critique:
                 critique = self._fallback_critique()
-                if "critic_agent" not in state.failed_agents:
-                    state.failed_agents.append("critic_agent")
+                state.mark_agent_done("critic_agent", AgentStatus.FAILED)
             else:
-                if "critic_agent" not in state.completed_agents:
-                    state.completed_agents.append("critic_agent")
+                state.mark_agent_done("critic_agent", AgentStatus.SUCCESS)
 
             _update_tokens()
             if progress_callback: progress_callback(state)
@@ -291,6 +286,7 @@ class Orchestrator:
             # Step 6: QA Agent
             # ----------------------------------------------------------------
             state.stage = WorkflowStage.QA_CHECK
+            state.mark_agent_start("qa_agent")
             if progress_callback: progress_callback(state)
             logger.info(f"[{self.AGENT_NAME}] Step 6: Running QA Agent...")
 
@@ -310,11 +306,9 @@ class Orchestrator:
 
             if not qa:
                 qa = self._fallback_qa()
-                if "qa_agent" not in state.failed_agents:
-                    state.failed_agents.append("qa_agent")
+                state.mark_agent_done("qa_agent", AgentStatus.FAILED)
             else:
-                if "qa_agent" not in state.completed_agents:
-                    state.completed_agents.append("qa_agent")
+                state.mark_agent_done("qa_agent", AgentStatus.SUCCESS)
 
             _update_tokens()
             if progress_callback: progress_callback(state)
