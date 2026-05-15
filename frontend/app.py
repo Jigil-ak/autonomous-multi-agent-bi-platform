@@ -103,33 +103,36 @@ def render_input_section():
     
     with st.form("workflow_input"):
         st.markdown("### Strategic Request Context")
-        company = st.text_input("Company Name / Description", "An AI-powered SaaS analytics platform")
-        product = st.text_area("Product Details", "Self-service BI dashboard with natural language queries")
-        audience = st.text_input("Target Audience", "Small and medium businesses")
-        goals = st.text_input("Goals", "Acquire 500 paying users within 6 months")
-        constraints = st.text_input("Constraints", "Bootstrap budget, team of 5")
+        company = st.text_input("Company Name / Description", placeholder="e.g. An AI-powered SaaS analytics platform")
+        product = st.text_area("Product Details", placeholder="e.g. Self-service BI dashboard with natural language queries")
+        audience = st.text_input("Target Audience", placeholder="e.g. Small and medium businesses")
+        goals = st.text_input("Goals", placeholder="e.g. Acquire 500 paying users within 6 months")
+        constraints = st.text_input("Constraints", placeholder="e.g. Bootstrap budget, team of 5")
         
         submitted = st.form_submit_button("Generate Strategy", type="primary")
         
         if submitted:
-            st.session_state.task_id = None
-            st.session_state.workflow_status = "STARTING"
-            st.session_state.final_report = None
-            st.session_state.logs = []
-            
-            payload = {
-                "company_description": company,
-                "product_details": product,
-                "target_audience": audience,
-                "goals": goals,
-                "constraints": constraints,
-                "enable_human_approval": False
-            }
-            task_id = start_workflow(payload)
-            if task_id:
-                st.session_state.task_id = task_id
-                st.session_state.workflow_status = "RUNNING"
-                st.rerun()
+            if not company or not product or not audience or not goals:
+                st.error("Please fill out all required fields (Company, Product, Audience, and Goals) before generating a strategy.")
+            else:
+                st.session_state.task_id = None
+                st.session_state.workflow_status = "STARTING"
+                st.session_state.final_report = None
+                st.session_state.logs = []
+                
+                payload = {
+                    "company_description": company,
+                    "product_details": product,
+                    "target_audience": audience,
+                    "goals": goals,
+                    "constraints": constraints if constraints else "None specified",
+                    "enable_human_approval": False
+                }
+                task_id = start_workflow(payload)
+                if task_id:
+                    st.session_state.task_id = task_id
+                    st.session_state.workflow_status = "RUNNING"
+                    st.rerun()
 
 def render_active_workflow():
     task_id = st.session_state.task_id
