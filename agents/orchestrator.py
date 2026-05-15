@@ -506,6 +506,7 @@ QA: Verdict={qa.overall_verdict} | Score={qa.completeness_score}
 def run_workflow(
     workflow_input: WorkflowInput,
     enable_human_approval: bool = False,
+    progress_callback: Optional[callable] = None,
 ) -> WorkflowResult:
     """
     Create an Orchestrator and run the full workflow.
@@ -513,4 +514,8 @@ def run_workflow(
     This is the primary entry point used by the FastAPI backend.
     """
     orchestrator = Orchestrator()
-    return orchestrator.run(workflow_input, enable_human_approval=enable_human_approval)
+    return orchestrator.run(
+        workflow_input, 
+        enable_human_approval=enable_human_approval,
+        progress_callback=progress_callback
+    )

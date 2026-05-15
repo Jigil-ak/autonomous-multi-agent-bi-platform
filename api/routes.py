@@ -271,7 +271,6 @@ def _run_workflow_background(
                 _append_log(task_id, f"⚠ {w}")
 
     except Exception as exc:
-        _running["active"] = False
         error_msg = f"Workflow exception: {exc}"
         tb = traceback.format_exc()
         logger.error(f"[routes] {error_msg}\n{tb}")
