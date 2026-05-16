@@ -10,7 +10,7 @@ The system emphasizes **observability**, **resilience (graceful degradation)**, 
 
 ## 🏗️ Architecture Overview
 
-The platform uses a layered architecture to keep components clean, testable, and deterministic:
+The platform uses a custom orchestration layer inspired by CrewAI patterns to support fine-grained observability, fallback routing, real-time workflow visualization, and resilient execution handling. It uses a layered architecture to keep components clean, testable, and deterministic:
 
 1.  **FastAPI Backend:** Handles asynchronous workflow execution and REST endpoints.
 2.  **Streamlit Dashboard:** Progressive UI that provides live visualization of the multi-agent orchestration.
